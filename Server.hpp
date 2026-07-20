@@ -6,6 +6,16 @@
 #include <vector>
 #include <poll.h>
 #include <map>
+#include <cstdlib>
+#include <cstring>
+#include <sstream>
+#include <unistd.h>
+#include <fcntl.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <algorithm>
+#include <signal.h>
 //#include "Client.hpp"
 //#include "Channel.hpp"
 
@@ -51,8 +61,15 @@ class Server
 		void	sendWelcome(Client* client) const;
 		bool	isNickNameTaken(const std::string& name) const;
 		void	broadcastToChannel(Channel* channel, const std::string& msg, Client* exclude) const;
+		void	sendReply(Client* client, const std::string& code, const std::string& msg) const;
+		void	sendError(Client* client, const std::string& code, const std::string& msg) const;
+		void	sendRaw(Client* client, const std::string& msg) const;
+
+		std::string	toUpper(const std::string& str) const;
+		std::string	trim(const std::string& str) const;
+		std::vector<std::string>	splitParams(const std::string& str) const;
 	public:
-		Server(int port, const std::string &password);
+		Server(int port, const std::string& password);
 		~Server();
 
 		void	run();
