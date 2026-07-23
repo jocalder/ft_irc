@@ -1,4 +1,5 @@
 #include "Server.hpp"
+#include "Utils.hpp"
 
 static bool	g_running = true;
 
@@ -62,7 +63,7 @@ void	Server::setupSocket()
 		close(_serverSocket);
 		exit(1);
 	}
-	if (listen(_serverSocket, 128) < 0)
+	if (listen(_serverSocket, SOMAXCONN) < 0)
 	{
 		std::cerr << "Error: listen failed." << std::endl;
 		close(_serverSocket);
@@ -70,4 +71,141 @@ void	Server::setupSocket()
 	}
 	std::cout << "Server listening on port: " << _port << "." << std::endl;
 	
+	struct pollfd	serverpfd;
+	serverpfd.fd = _serverSocket;
+	serverpfd.events = POLLIN;
+	serverpfd.revents = 0;
+	_pollFds.push_back(serverpfd);
+}
+
+void	Server::run()
+{
+	_running = true;
+	g_running = true;
+
+	std::cout << "Server running: press Ctrl+C to stop" << std::endl;
+	while (_running && g_running)
+	{
+		int	tmp = poll(&_pollFds[0], _pollFds.size(), -1);
+		if (tmp < 0)
+		{
+			if (errno == EINTR)
+				continue;
+			std::cout << "Error: poll failed." << std::endl;
+			break;
+		}
+		for (size_t i = 0; i < _pollFds.size(); ++i)
+		{
+			if (_pollFds[i].revents == 0)
+				continue;
+			if (_pollFds[i].revents & POLLIN)
+			{
+				if (_pollFds[i].fd == _serverSocket)
+					handleNewConnection();
+				else
+					handleClientData(_pollFds[i].fd);
+			}
+			if (_pollFds[i].revents & (POLLHUP | POLLERR | POLLNVAL))
+			{
+				if (_pollFds[i].fd != _serverSocket)
+					removeClient(_pollFds[i].fd);
+			}
+		}
+	}
+	std::cout << "Server stopped." << std::endl;
+}
+
+void	Server::handleNewConnection()
+{
+	struct	sockaddr_in	clientAddr;
+	socklen_t	addrLen = sizeof(clientAddr);
+
+	int	clientFd = accept(_serverSocket, (struct sockaddr*)&clientAddr, &addrLen);
+	if (clientFd < 0)
+	{
+		std::cerr << "Error: accept failed." << std::endl;
+		return;
+	}
+	if (fcntl(clientFd, F_SETFL, O_NONBLOCK) < 0)
+	{
+		std::cerr << "Error: fcntl failed.";
+		close(clientFd);
+		return;
+	}
+	Client* client = new Client(clientFd, clientAddr);
+	_clients[clientFd] = client;
+
+	struct pollfd	pfd;
+	pfd.fd = clientFd;
+	pfd.events = POLLIN;
+	pfd.revents = 0;
+	_pollFds.push_back(pfd);
+	
+	std::cout << "New client connected: fd = " << clientFd << ", ip=" <<
+	inet_ntoa(clientAddr.sin_addr) << std::endl;
+}
+
+void	Server::handleClientData(int fd)
+{
+	std::map<int, Client*>::iterator it = _clients.find(fd);
+	if (it == _clients.end())
+		return;
+	Client* client = it->second;
+	char buffer[512];
+	std::memset(buffer, 0, sizeof(buffer));
+
+	ssize_t bytesRead = recv(fd, buffer, sizeof(buffer) - 1, 0);
+	if (bytesRead <= 0)
+	{
+		if (bytesRead == 0)
+			std::cerr << "Client fd: " << fd << " disconnected." << std::endl;
+		else
+			std::cerr << "Error: recv failed of fd " << fd << "." << std::endl;
+		removeClient(fd);
+		return; 
+	}
+
+	client->appendtobuffer(std::string(buffer, bytesRead));
+	while (client->hasCompleteMessage())
+	{
+		std::string line = client->extractMessage();
+		if (!line.empty())
+			processCommand(client, line);
+	}
+}
+
+void	Server::removeClient(int fd)
+{
+	std::map<int, Client*>::iterator it = _clients.find(fd);
+	if (it == _clients.end())
+		return;
+	Client* client = it->second;
+
+	std::vector<Channel*> channels = client->getChannels();
+	for (std::vector<Channel*>::iterator channelIt = channels.begin();
+		channelIt != channels.end(); ++channelIt)
+	{
+		Channel* channel = *channelIt;
+		std::string partMsg = client->getPrefix() + " PART " + channel->getName()
+			+ "\r\n";
+		channel->broadcast(partMsg, NULL);
+		channel->removeClient(client);
+		client->leaveChannel(channel);
+		if (channel->isEmpty())
+			deleteChannel(channel->getName());
+	}
+	close(fd);
+	delete client;
+	_clients.erase(it);
+
+	for (std::vector<struct pollfd>::iterator pollIt = _pollFds.begin();
+		pollIt != _pollFds.end(); ++pollIt)
+	{
+		if (pollIt->fd == fd)
+		{
+			_pollFds.erase(pollIt);
+			break;
+		}
+	}
+	std::cout << "Client fd: " << fd << " removed." << std::endl;
 }

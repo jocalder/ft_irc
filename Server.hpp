@@ -16,8 +16,6 @@
 #include <netinet/in.h>
 #include <algorithm>
 #include <signal.h>
-//#include "Client.hpp"
-//#include "Channel.hpp"
 
 class Client;
 class Channel;
@@ -29,7 +27,7 @@ class Server
 		int								_serverSocket;
 		std::string						_password;
 		bool							_running;
-		std::vector<struct pollfds>		_pollFds;
+		std::vector<struct pollfd>		_pollFds;
 		std::map<int, Client*>			_clients;
 		std::map<std::string, Channel*>	_channels;
 
@@ -40,18 +38,18 @@ class Server
 		void	removeClient(int fd);
 		void	processCommand(Client* client, std::string& line);
 
-		void	cmdPass(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdNick(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdUser(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdJoin(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdQuit(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdPart(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdTopic(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdNames(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdInvite(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdPrivmsg(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdMode(Client* client, const std::vector<std::string>& params, const std::string& trailing);
-		void	cmdPing(Client* client, const std::vector<std::string>& params, const std::string& trailing);
+		void	cmdPass(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdNick(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdUser(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdJoin(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdQuit(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdPart(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdTopic(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdNames(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdInvite(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdPrivmsg(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdMode(Client* client, const std::vector<std::string>& params, const std::string& message);
+		void	cmdPing(Client* client, const std::vector<std::string>& params, const std::string& message);
 
 		Client* 	findClientBynick(const std::string& nick) const;
 		Channel*	findChannel(const std::string& name) const;
@@ -65,8 +63,8 @@ class Server
 		void	sendError(Client* client, const std::string& code, const std::string& msg) const;
 		void	sendRaw(Client* client, const std::string& msg) const;
 
-		std::string	toUpper(const std::string& str) const;
-		std::string	trim(const std::string& str) const;
+		std::string					toUpper(const std::string& str) const;
+		std::string					trim(const std::string& str) const;
 		std::vector<std::string>	splitParams(const std::string& str) const;
 	public:
 		Server(int port, const std::string& password);
